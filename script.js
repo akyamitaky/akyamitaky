@@ -73,9 +73,7 @@ function updateMainDisplay() {
 
 function renderTaskbar() {
     const tb = document.getElementById('taskbar');
-    tb.innerHTML = ''; // Clear current taskbar
-    
-    // Draw the current page of taskbar items
+    tb.innerHTML = '';
     TASKBAR_PAGES[currentTaskbarPage].forEach((item, index) => {
         if (item === '') return;
         const span = document.createElement('span');
@@ -86,12 +84,7 @@ function renderTaskbar() {
             resetInactivityTimer();
             handleTaskbarSelection(item); 
         };
-        
-        // Only highlight if we are in TASKBAR mode AND on the correct index
-        if (appState === 'TASKBAR_NAV' && index === tbIndex) {
-            span.classList.add('highlighted');
-        }
-        
+        if (appState === 'TASKBAR_NAV' && index === tbIndex) span.classList.add('highlighted');
         tb.appendChild(span);
     });
 }
@@ -107,12 +100,10 @@ function showHomeView() {
     if (inactivityTimer) clearTimeout(inactivityTimer);
     hideAllViews();
     document.getElementById('home-view').style.display = 'flex';
-    
     appState = 'IDLE';
-    currentTaskbarPage = 0; // FIXED: Always reset to default page 1
-    
+    currentTaskbarPage = 0; 
     updateMainDisplay();
-    renderTaskbar(); // FIXED: Always draw the taskbar so it's visible by default
+    renderTaskbar(); 
 }
 
 function showListView(title, listData) {
@@ -202,7 +193,7 @@ function press(key) {
         else if (key === 'FNC') { 
             appState = 'TASKBAR_NAV'; 
             tbIndex = 0; 
-            renderTaskbar(); // Highlights the first item [MSG]
+            renderTaskbar(); 
         }
         return;
     }
@@ -274,6 +265,19 @@ function press(key) {
             renderFreqEditDigits();
         }
         else if (key === 'FNC') {
+            // NEW: Hardware validation check (1.50000 to 29.99999 MHz)
+            let freqFloat = parseFloat(formatFreqString(activeFreqArray));
+            
+            if (freqFloat < 1.5) {
+                // Reject the entry and flash a warning
+                const titleEl = document.getElementById('freq-edit-title');
+                const oldTitle = titleEl.innerText;
+                titleEl.innerText = "INVALID";
+                setTimeout(() => { titleEl.innerText = oldTitle; }, 1000);
+                return; // Do not save, remain in edit mode
+            }
+
+            // If valid, save and exit
             if (currentFreqType === 'SNGL') freqSngl = [...activeFreqArray];
             if (currentFreqType === 'TX') freqTx = [...activeFreqArray];
             if (currentFreqType === 'RX') freqRx = [...activeFreqArray];
@@ -310,4 +314,4 @@ knob.addEventListener('pointerup', () => isDragging = false);
 // Initialize the Radio
 updateOpModeDisplay();
 updateMainDisplay();
-showHomeView(); // This now properly calls renderTaskbar()!
+showHomeView();
