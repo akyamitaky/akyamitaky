@@ -28,7 +28,7 @@ let channelBank = 6;
 let freqMode = 'SNGL FREQ'; 
 let currentPower = 'HIGH';  
 
-let freqSngl = [0, 6, 5, 0, 0, 0, 0];
+let freqSngl = [0, 7, 5, 0, 0, 0, 0];
 let freqTx   = [0, 8, 2, 5, 0, 0, 0];
 let freqRx   = [0, 9, 1, 2, 5, 0, 0];
 
