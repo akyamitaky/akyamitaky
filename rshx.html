@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RS HX Radio Simulator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="radio-body">
+        <div class="antenna-row">
+            <div class="port">WHIP</div>
+            <div class="port">DIPOLE</div>
+        </div>
+
+        <div class="dial-section">
+            <div class="channel-labels">DIAL: <span id="ch-dial-display">0</span></div>
+            <div class="knob-container">
+                <div class="knob" id="channel-knob">
+                    <div class="knob-indicator"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="lcd-screen" id="screen">
+            <div class="lcd-top-section">
+                <div class="level-meter">
+                    <div id="rx-tx">RX</div>
+                    <div class="meter-bars">
+                        <div>▼</div><div>▼</div><div>▼</div><div>▼</div><div>▼</div>
+                    </div>
+                </div>
+                
+                <div class="radio-status-area">
+                    
+                    <div id="home-view">
+                        <div class="status-top">
+                            <span id="freq-mode">SNGL FREQ</span>
+                            <span class="chn-label">CHN <span id="ch-display-large">60</span></span>
+                        </div>
+                        <div class="status-middle">
+                            <span id="freq-display">06.50000</span>
+                        </div>
+                        <div class="status-bottom">
+                            <span id="dest-address">TO 07</span>
+                            <span id="op-mode">CLR 0</span>
+                        </div>
+                    </div>
+
+                    <div id="list-view" style="display: none;">
+                        <div class="list-title" id="list-title">MENU</div>
+                        <div class="list-container" id="list-container"></div>
+                    </div>
+
+                    <div id="param-view" style="display: none;">
+                        <div class="list-title" id="param-title">EDIT</div>
+                        <div class="param-value-container">
+                            <span id="param-value" class="blinking-cursor">0</span>
+                        </div>
+                    </div>
+
+                    <div id="freq-edit-view" style="display: none;">
+                        <div class="list-title" id="freq-edit-title">FREQ</div>
+                        <div class="freq-value-container" id="freq-edit-container"></div>
+                    </div>
+
+                </div>
+            </div>
+            
+            <div class="taskbar" id="taskbar"></div>
+        </div>
+
+        <div class="keypad">
+            <button class="btn" onclick="press('LITE')">LITE<br>RST</button>
+            <button class="btn" onclick="press('CLR')">CLR<br>↓</button>
+            <button class="btn" onclick="press('SEC')">SEC<br>↑</button>
+            <button class="btn" onclick="press('AJ')">A.J.<br>→</button>
+            <button class="btn" onclick="press('FNC')">FNC<br>ENT</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
