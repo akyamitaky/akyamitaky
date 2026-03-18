@@ -1,0 +1,118 @@
+import ccxt
+import pandas as pd
+import numpy as np
+import time
+from datetime import datetime
+import requests
+
+# --------------------
+# Telegram Setup
+BOT_TOKEN = "8225584425:AAG6jw43xIHyCGoitbs_O2UKPcVb44FB0PI"
+CHAT_ID = "5653071392"
+
+def send_telegram(message):
+    """Send message to Telegram and print debug"""
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    payload = {"chat_id": CHAT_ID, "text": message}
+    try:
+        r = requests.post(url, data=payload)
+        print("Telegram status:", r.status_code)
+    except Exception as e:
+        print("Telegram error:", e)
+
+# --------------------
+# Binance Setup
+exchange = ccxt.binance()
+symbol = 'ETH/USDT'
+timeframe = '5m'
+limit = 200  # last 200 candles for EMA/VWAP
+
+# v3 strategy parameters
+TP = 0.012
+SL = 0.006
+
+# --------------------
+# Keep track of last signal to avoid spamming Telegram
+last_signal = None
+
+# --------------------
+def get_signal():
+    global last_signal
+
+    # Fetch latest OHLCV data
+    candles = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+    df = pd.DataFrame(candles, columns=['timestamp','open','high','low','close','volume'])
+    
+    df['close'] = df['close'].astype(float)
+    df['volume'] = df['volume'].astype(float)
+    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+    df['hour'] = df['timestamp'].dt.hour
+
+    # Indicators
+    df['EMA9'] = df['close'].ewm(span=9).mean()
+    df['EMA21'] = df['close'].ewm(span=21).mean()
+    df['EMA50'] = df['close'].ewm(span=50).mean()
+
+    # RSI
+    delta = df['close'].diff()
+    gain = delta.where(delta > 0, 0)
+    loss = -delta.where(delta < 0, 0)
+    avg_gain = gain.rolling(14).mean()
+    avg_loss = loss.rolling(14).mean()
+    rs = avg_gain / avg_loss
+    df['RSI'] = 100 - (100 / (1 + rs))
+
+    # VWAP
+    df['VWAP'] = (df['close'] * df['volume']).cumsum() / df['volume'].cumsum()
+
+    # Volume average
+    df['VOL_AVG'] = df['volume'].rolling(20).mean()
+
+    last = df.iloc[-1]
+    prev = df.iloc[-2]
+
+    # Session filter: London + NY (UTC 7-20)
+    if not (7 <= last['hour'] <= 20):
+        signal = "WAIT"
+    else:
+        # BUY condition
+        if (last['EMA9'] > last['EMA21'] > last['EMA50'] and
+            last['EMA50'] > prev['EMA50'] and
+            last['close'] > last['VWAP'] and
+            52 <= last['RSI'] <= 62 and
+            last['volume'] > last['VOL_AVG']):
+            signal = f"BUY | Price: {last['close']:.2f} | EMA50: {last['EMA50']:.2f}, RSI: {last['RSI']:.2f}"
+
+        # SELL condition
+        elif (last['EMA9'] < last['EMA21'] < last['EMA50'] and
+              last['EMA50'] < prev['EMA50'] and
+              last['close'] < last['VWAP'] and
+              38 <= last['RSI'] <= 48 and
+              last['volume'] > last['VOL_AVG']):
+            signal = f"SELL | Price: {last['close']:.2f} | EMA50: {last['EMA50']:.2f}, RSI: {last['RSI']:.2f}"
+        else:
+            signal = "WAIT"
+
+    # Send Telegram only if signal changed
+    if signal.startswith("BUY") or signal.startswith("SELL") or signal.startswith("WAIT"):
+        if signal != last_signal:
+            last_signal = signal
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            message = f"[{now}] ETH Signal → {signal}"
+            print(message)
+            send_telegram(message)
+        else:
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ETH Signal → {signal} (no change, not sent)")
+    else:
+        # WAIT printed in console but not sent to Telegram
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ETH Signal → WAIT")
+
+# --------------------
+# Run every 5 minutes
+while True:
+    try:
+        get_signal()
+        time.sleep(180)  # 5 minutes
+    except Exception as e:
+        print("Error:", e)
+        time.sleep(10)
