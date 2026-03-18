@@ -14,6 +14,35 @@ const TASKBAR_PAGES = [
     ['ERASE', '', '', 'BACK']
 ];
 
+// --- 100 Channel Database Generation (Mobile Safe) ---
+function generateRandomFreq() {
+    var min = 150000; 
+    var max = 2999999;
+    var rand = Math.floor(Math.random() * (max - min + 1)) + min;
+    var str = String(rand);
+    
+    while (str.length < 7) {
+        str = '0' + str;
+    }
+    
+    var arr = [];
+    for(var i = 0; i < str.length; i++) {
+        arr.push(parseInt(str[i]));
+    }
+    return arr;
+}
+
+var channels = [];
+for (var i = 0; i < 100; i++) {
+    channels.push({
+        freqSngl: generateRandomFreq(),
+        freqTx: generateRandomFreq(),
+        freqRx: generateRandomFreq(),
+        freqMode: 'SNGL FREQ',
+        power: 'HIGH'
+    });
+}
+
 // --- Application State ---
 let currentTaskbarPage = 0;
 let appState = 'IDLE'; 
@@ -23,22 +52,47 @@ let currentList = [];
 let currentParentMenu = ''; 
 let inactivityTimer = null; 
 
+// --- Active Radio Variables ---
 let opModeState = 'CLR'; 
 let channelBank = 6; 
+let currentDial = 0; 
+
+// Working Memory for the selected channel
 let freqMode = 'SNGL FREQ'; 
 let currentPower = 'HIGH';  
-
-let freqSngl = [0, 7, 5, 0, 0, 0, 0];
-let freqTx   = [0, 8, 2, 5, 0, 0, 0];
-let freqRx   = [0, 9, 1, 2, 5, 0, 0];
+let freqSngl = [];
+let freqTx = [];
+let freqRx = [];
 
 let paramOptions = [];
 let paramIndex = 0;
 let paramCallback = null;
-
 let activeFreqArray = [];
 let freqEditIndex = 0;
 let currentFreqType = ''; 
+
+// --- Channel Memory Managers ---
+function updateActiveChannel() {
+    let chIndex = (channelBank * 10) + currentDial;
+    let slot = channels[chIndex];
+    
+    freqSngl = slot.freqSngl.slice();
+    freqTx = slot.freqTx.slice();
+    freqRx = slot.freqRx.slice();
+    freqMode = slot.freqMode;
+    currentPower = slot.power;
+    
+    updateMainDisplay();
+}
+
+function saveCurrentChannel() {
+    let chIndex = (channelBank * 10) + currentDial;
+    channels[chIndex].freqSngl = freqSngl.slice();
+    channels[chIndex].freqTx = freqTx.slice();
+    channels[chIndex].freqRx = freqRx.slice();
+    channels[chIndex].freqMode = freqMode;
+    channels[chIndex].power = currentPower;
+}
 
 // --- Helpers ---
 function resetInactivityTimer() {
@@ -53,7 +107,9 @@ function getPrgMenu() {
     return ['CHAN BANK', 'FREQ MNG', 'SNGL FREQ', 'POWER', 'SELF ID', 'PASSWORD'];
 }
 
-function formatFreqString(arr) { return `${arr[0]}${arr[1]}.${arr[2]}${arr[3]}${arr[4]}${arr[5]}${arr[6]}`; }
+function formatFreqString(arr) { 
+    return `${arr[0]}${arr[1]}.${arr[2]}${arr[3]}${arr[4]}${arr[5]}${arr[6]}`; 
+}
 
 // --- Display Functions ---
 function updateOpModeDisplay() {
@@ -65,8 +121,9 @@ function updateOpModeDisplay() {
 
 function updateMainDisplay() {
     document.getElementById('freq-mode').innerText = freqMode;
-    const dialVal = document.getElementById('ch-dial-display').innerText;
-    document.getElementById('ch-display-large').innerText = `${channelBank}${dialVal}`;
+    document.getElementById('ch-dial-display').innerText = currentDial;
+    document.getElementById('ch-display-large').innerText = `${channelBank}${currentDial}`;
+    
     if (freqMode === 'DUAL FREQ') document.getElementById('freq-display').innerText = formatFreqString(freqRx);
     else document.getElementById('freq-display').innerText = formatFreqString(freqSngl);
 }
@@ -132,9 +189,9 @@ function showFreqEditBox(title, freqType) {
     appState = 'FREQ_EDIT_NAV';
     currentFreqType = freqType;
     freqEditIndex = 0; 
-    if (freqType === 'SNGL') activeFreqArray = [...freqSngl];
-    if (freqType === 'TX') activeFreqArray = [...freqTx];
-    if (freqType === 'RX') activeFreqArray = [...freqRx];
+    if (freqType === 'SNGL') activeFreqArray = freqSngl.slice();
+    if (freqType === 'TX') activeFreqArray = freqTx.slice();
+    if (freqType === 'RX') activeFreqArray = freqRx.slice();
     hideAllViews();
     document.getElementById('freq-edit-view').style.display = 'flex';
     document.getElementById('freq-edit-title').innerText = title;
@@ -209,26 +266,31 @@ function press(key) {
     }
 
     if (appState === 'SUBMENU_NAV') {
+        // FIX: LITE button now strictly exits cleanly back to IDLE
         if (key === 'LITE') {
-            appState = 'TASKBAR_NAV';
-            showHomeView(); 
-            appState = 'TASKBAR_NAV';
-            renderTaskbar(); 
+            showHomeView();
         } 
         else if (key === 'CLR') { subMenuIndex = (subMenuIndex + 1) % currentList.length; renderListItems(); } 
         else if (key === 'SEC') { subMenuIndex = (subMenuIndex - 1 + currentList.length) % currentList.length; renderListItems(); } 
         else if (key === 'FNC') {
             const selection = currentList[subMenuIndex];
-            if (selection === 'FREQ MNG') { showParamBox('FREQ MNG', ['SNGL FREQ', 'DUAL FREQ'], freqMode === 'DUAL FREQ' ? 1 : 0, (val) => { freqMode = val; }); } 
+            if (selection === 'FREQ MNG') { 
+                showParamBox('FREQ MNG', ['SNGL FREQ', 'DUAL FREQ'], freqMode === 'DUAL FREQ' ? 1 : 0, (val) => { freqMode = val; saveCurrentChannel(); }); 
+            } 
             else if (selection === 'SNGL FREQ') { showFreqEditBox('SNGL FREQ', 'SNGL'); } 
             else if (selection === 'DUAL TX') { showFreqEditBox('DUAL TX', 'TX'); } 
             else if (selection === 'DUAL RX') { showFreqEditBox('DUAL RX', 'RX'); } 
-            else if (selection === 'CHAN BANK') { showParamBox('CHAN BANK', ['0','1','2','3','4','5','6','7','8','9'], channelBank, (val) => { channelBank = parseInt(val); }); } 
+            else if (selection === 'CHAN BANK') { 
+                showParamBox('CHAN BANK', ['0','1','2','3','4','5','6','7','8','9'], channelBank, (val) => { 
+                    channelBank = parseInt(val); 
+                    updateActiveChannel(); 
+                }); 
+            } 
             else if (selection === 'PASSWORD') { showParamBox('PASSWORD', ['00000','10000','20000'], 0, null); } 
             else if (selection === 'POWER') {
                 const pwrOpts = ['ADAPTIVE', 'HIGH', 'MED', 'LOW', 'RCV ONLY'];
                 let idx = pwrOpts.indexOf(currentPower);
-                showParamBox('POWER', pwrOpts, idx !== -1 ? idx : 1, (val) => { currentPower = val; });
+                showParamBox('POWER', pwrOpts, idx !== -1 ? idx : 1, (val) => { currentPower = val; saveCurrentChannel(); });
             } 
             else {
                 document.getElementById('list-title').innerText = "SAVED";
@@ -265,30 +327,31 @@ function press(key) {
             renderFreqEditDigits();
         }
         else if (key === 'FNC') {
-            // NEW: Hardware validation check (1.50000 to 29.99999 MHz)
             let freqFloat = parseFloat(formatFreqString(activeFreqArray));
             
             if (freqFloat < 1.5) {
-                // Reject the entry and flash a warning
                 const titleEl = document.getElementById('freq-edit-title');
                 const oldTitle = titleEl.innerText;
                 titleEl.innerText = "INVALID";
                 setTimeout(() => { titleEl.innerText = oldTitle; }, 1000);
-                return; // Do not save, remain in edit mode
+                return; 
             }
 
-            // If valid, save and exit
-            if (currentFreqType === 'SNGL') freqSngl = [...activeFreqArray];
-            if (currentFreqType === 'TX') freqTx = [...activeFreqArray];
-            if (currentFreqType === 'RX') freqRx = [...activeFreqArray];
+            if (currentFreqType === 'SNGL') freqSngl = activeFreqArray.slice();
+            if (currentFreqType === 'TX') freqTx = activeFreqArray.slice();
+            if (currentFreqType === 'RX') freqRx = activeFreqArray.slice();
+            
+            saveCurrentChannel();
             showListView(currentParentMenu, getPrgMenu());
         }
         return;
     }
 }
 
+// --- Rotary Dial Logic ---
 const knob = document.getElementById('channel-knob');
 let isDragging = false, currentAngle = 0, startAngle = 0, center = { x: 0, y: 0 };
+
 knob.addEventListener('pointerdown', (e) => {
     isDragging = true;
     const rect = knob.getBoundingClientRect();
@@ -298,20 +361,31 @@ knob.addEventListener('pointerdown', (e) => {
 });
 
 knob.addEventListener('pointermove', (e) => {
-    if (!isDragging || appState !== 'IDLE') return; 
+    if (!isDragging) return; 
+    
+    // FIX: Twisting the physical knob instantly aborts any software menus
+    if (appState !== 'IDLE') {
+        showHomeView();
+    }
+    
     resetInactivityTimer();
     let angle = Math.atan2(e.clientY - center.y, e.clientX - center.x) * (180 / Math.PI);
     currentAngle = angle - startAngle;
     knob.style.transform = `rotate(${currentAngle}deg)`;
+    
     let onesDigit = Math.round(currentAngle / 36) % 10;
     if (onesDigit < 0) { onesDigit += 10; } 
-    document.getElementById('ch-dial-display').innerText = onesDigit;
-    updateMainDisplay();
+    
+    if (currentDial !== onesDigit) {
+        currentDial = onesDigit;
+        updateActiveChannel();
+    }
 });
 
 knob.addEventListener('pointerup', () => isDragging = false);
 
-// Initialize the Radio
+// --- Boot Up ---
 updateOpModeDisplay();
-updateMainDisplay();
+updateActiveChannel();
 showHomeView();
+                
